@@ -4,8 +4,7 @@ export const up = (knex: Knex) =>
   knex.schema
     .createTable('paymentEvent', (t: Knex.CreateTableBuilder) => {
       t.uuid('id').primary().notNullable();
-      t.uuid('userId');
-      t.string('customerEmail').notNullable();
+      t.string('providerEventId', 100).notNullable();
       t.jsonb('eventData').notNullable();
       t.timestamps();
     });

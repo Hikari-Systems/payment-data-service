@@ -2,8 +2,7 @@ import { Knex } from 'knex';
 
 export interface PaymentEvent {
   id?: string;
-  userId?: string;
-  customerEmail: string;
+  providerEventId: string;
   eventData: string;
   createdAt?: Date;
   updatedAt?: Date;
