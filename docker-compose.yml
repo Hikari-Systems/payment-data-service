@@ -1,0 +1,39 @@
+services:
+  app:
+    build:
+      context: .
+      secrets:
+        - ghapikey
+    ports:
+      - '3001:3000'
+    read_only: true
+    volumes:
+      - '../../configs/payment-data-service:/sandbox'
+      # - './static:/app/static'
+    environment:
+      db__host: payment-data-service-db
+      db__username: payment-data-service
+      db__password: payment-data-service
+      db__database: payment-data-service
+    depends_on:
+      payment-data-service-db:
+        condition: service_healthy
+    links:
+      - payment-data-service-db
+
+  payment-data-service-db:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: payment-data-service
+      POSTGRES_USER: payment-data-service
+      POSTGRES_PASSWORD: payment-data-service
+    ports: [ "5432" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -q -h payment-data-service-db -U payment-data-service" ]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+
+secrets:
+  ghapikey:
+    environment: GH_API_KEY

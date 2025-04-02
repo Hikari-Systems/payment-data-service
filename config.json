@@ -1,0 +1,15 @@
+{
+  "server": {
+    "port": 3000
+  },
+  "log": {
+    "level": "debug"
+  },
+  "db": {
+    "database": "payment-data-service",
+    "host": "payment-data-service-db",
+    "port": "5432",
+    "username": "payment-data-service",
+    "password": "payment-data-service"
+  }
+}
