@@ -34,7 +34,7 @@ router.post('/', express.json(), async (req, res, next) => {
     const paymentEvent = await paymentEventModel.insert({
       id: v4(),
       providerEventId,
-      eventData,
+      eventData: JSON.parse(eventData),
     });
     return res.status(201).json(paymentEvent);
   } catch (e) {
@@ -56,7 +56,7 @@ router.put('/:id', express.json(), async (req, res, next) => {
     const paymentEvent = await paymentEventModel.update({
       id,
       providerEventId,
-      eventData,
+      eventData: JSON.parse(eventData),
     });
     return res.status(200).json(paymentEvent);
   } catch (e) {

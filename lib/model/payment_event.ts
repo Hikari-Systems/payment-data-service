@@ -11,12 +11,12 @@ export interface PaymentEvent {
 const fixResultsetTypes = (r: any) =>
   r.map((c: any) => ({
     ...c,
-    modelArgs: JSON.stringify(c.eventData), // because we're using a jsonb column
+    eventData: JSON.stringify(c.eventData), // because we're using a jsonb column
   }));
 
 const insert = (db: Knex) => (paymentEvent: PaymentEvent) =>
   db
-    .insert({ ...paymentEvent, createdAt: new Date() })
+    .insert({ ...paymentEvent, eventData: JSON.stringify(paymentEvent.eventData), createdAt: new Date() })
     .into('paymentEvent')
     .returning('*')
     .then(fixResultsetTypes)
@@ -24,7 +24,7 @@ const insert = (db: Knex) => (paymentEvent: PaymentEvent) =>
 
 const upsert = (db: Knex) => (paymentEvent: PaymentEvent) =>
   db
-    .insert({ ...paymentEvent, createdAt: new Date() })
+    .insert({ ...paymentEvent, eventData: JSON.stringify(paymentEvent.eventData), createdAt: new Date() })
     .into('paymentEvent')
     .onConflict('id')
     .merge({ ...paymentEvent, updatedAt: new Date() })
@@ -34,7 +34,7 @@ const upsert = (db: Knex) => (paymentEvent: PaymentEvent) =>
 
 const update = (db: Knex) => (paymentEvent: PaymentEvent) =>
   db
-    .update({ ...paymentEvent, updatedAt: new Date() })
+    .update({ ...paymentEvent, eventData: JSON.stringify(paymentEvent.eventData), updatedAt: new Date() })
     .from('paymentEvent')
     .where('id', paymentEvent.id)
     .returning('*')
