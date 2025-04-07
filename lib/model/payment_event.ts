@@ -3,42 +3,49 @@ import { Knex } from 'knex';
 export interface PaymentEvent {
   id?: string;
   providerEventId: string;
-  eventData: string;
+  eventData: any; // big long tree structure matching stripe event schema
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-const fixResultsetTypes = (r: any) =>
-  r.map((c: any) => ({
-    ...c,
-    eventData: JSON.stringify(c.eventData), // because we're using a jsonb column
-  }));
-
 const insert = (db: Knex) => (paymentEvent: PaymentEvent) =>
   db
-    .insert({ ...paymentEvent, eventData: JSON.stringify(paymentEvent.eventData), createdAt: new Date() })
+    .insert({
+      ...paymentEvent,
+      eventData: JSON.stringify(paymentEvent.eventData),
+      createdAt: new Date()
+    })
     .into('paymentEvent')
     .returning('*')
-    .then(fixResultsetTypes)
     .then((r) => r[0]);
 
 const upsert = (db: Knex) => (paymentEvent: PaymentEvent) =>
   db
-    .insert({ ...paymentEvent, eventData: JSON.stringify(paymentEvent.eventData), createdAt: new Date() })
+    .insert({
+      ...paymentEvent,
+      eventData: JSON.stringify(paymentEvent.eventData),
+      createdAt: new Date()
+    })
     .into('paymentEvent')
     .onConflict('id')
-    .merge({ ...paymentEvent, updatedAt: new Date() })
+    .merge({
+      ...paymentEvent,
+      eventData: JSON.stringify(paymentEvent.eventData),
+      updatedAt: new Date()
+    })
     .returning('*')
-    .then(fixResultsetTypes)
     .then((r) => r[0]);
 
 const update = (db: Knex) => (paymentEvent: PaymentEvent) =>
   db
-    .update({ ...paymentEvent, eventData: JSON.stringify(paymentEvent.eventData), updatedAt: new Date() })
+    .update({
+      ...paymentEvent,
+      eventData: JSON.stringify(paymentEvent.eventData),
+      updatedAt: new Date()
+    })
     .from('paymentEvent')
     .where('id', paymentEvent.id)
     .returning('*')
-    .then(fixResultsetTypes)
     .then((r) => r[0]);
 
 const get =
@@ -48,31 +55,27 @@ const get =
         .select()
         .from('paymentEvent')
         .where('id', id)
-        .then(fixResultsetTypes)
         .then((r) => (r.length ? r[0] : null));
 
 const getAll = (db: Knex) => () =>
   db
     .select()
     .from('paymentEvent')
-    .orderBy('createdAt', 'desc')
-    .then(fixResultsetTypes);
+    .orderBy('createdAt', 'desc');
 
 const getAllByCustomerEmail = (db: Knex) => (customerEmail: string) =>
   db
     .select()
     .from('paymentEvent')
     .where('customerEmail', customerEmail)
-    .orderBy('createdAt', 'desc')
-    .then(fixResultsetTypes);
+    .orderBy('createdAt', 'desc');
 
 const getAllByUserId = (db: Knex) => (userId: string) =>
   db
     .select()
     .from('paymentEvent')
     .where('userId', userId)
-    .orderBy('createdAt', 'desc')
-    .then(fixResultsetTypes)
+    .orderBy('createdAt', 'desc');
 
 export default (db: Knex) => ({
   insert: insert(db),
