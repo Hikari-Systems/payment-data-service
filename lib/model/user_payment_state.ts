@@ -4,6 +4,8 @@ export interface UserPaymentState {
   id?: string;
   userId: string;
   sku: string;
+  providerProductId: string;
+  providerPriceId: string;
   paidAt: Date;
   expiresAt: Date;
   createdAt?: Date;

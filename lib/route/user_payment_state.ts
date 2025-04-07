@@ -55,9 +55,11 @@ router.get('/byUserIdAndSku/:userId/:sku', async (req, res, next) => {
 });
 
 router.post('/', express.json(), async (req, res, next) => {
-  const { userId, sku, paidAt, expiresAt } = req.body as {
+  const { userId, sku, providerProductId, providerPriceId, paidAt, expiresAt } = req.body as {
     userId: string;
     sku: string;
+    providerProductId: string;
+    providerPriceId: string;
     paidAt: string;
     expiresAt: string;
   };
@@ -66,6 +68,8 @@ router.post('/', express.json(), async (req, res, next) => {
       id: v4(),
       userId,
       sku,
+      providerProductId,
+      providerPriceId,
       paidAt: dayjs(paidAt, 'YYYY-MM-DD HH:mm:ss').toDate(),
       expiresAt: dayjs(expiresAt, 'YYYY-MM-DD HH:mm:ss').toDate(),
     });
@@ -81,9 +85,11 @@ router.put('/:id', express.json(), async (req, res, next) => {
   if (!id) {
     return res.status(400).send(`No id provided`);
   }
-  const { userId, sku, paidAt, expiresAt } = req.body as {
+  const { userId, sku, providerProductId, providerPriceId, paidAt, expiresAt } = req.body as {
     userId: string;
     sku: string;
+    providerProductId: string;
+    providerPriceId: string;
     paidAt: string;
     expiresAt: string;
   };
@@ -92,6 +98,8 @@ router.put('/:id', express.json(), async (req, res, next) => {
       id,
       userId,
       sku,
+      providerProductId,
+      providerPriceId,
       paidAt: dayjs(paidAt, 'YYYY-MM-DD HH:mm:ss').toDate(),
       expiresAt: dayjs(expiresAt, 'YYYY-MM-DD HH:mm:ss').toDate(),
     });

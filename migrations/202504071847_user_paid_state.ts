@@ -6,6 +6,8 @@ export const up = (knex: Knex) =>
       t.uuid('id').primary().notNullable();
       t.uuid('userId').notNullable();
       t.string('sku', 100).notNullable();
+      t.string('providerProductId', 100).notNullable();
+      t.string('providerPriceId', 100).notNullable();
       t.timestamp('paidAt').notNullable();
       t.timestamp('expiresAt').notNullable();
       t.timestamps();
