@@ -1,8 +1,8 @@
 import express from 'express';
 import { v4 } from 'uuid';
 import { logging } from '@hikari-systems/hs.utils';
-import { userPaymentStateModel } from '../model';
 import dayjs from 'dayjs';
+import { userPaymentStateModel } from '../model';
 
 const log = logging('routes:userPaymentState');
 
@@ -32,7 +32,8 @@ router.get('/byUserId/:userId', async (req, res, next) => {
     return res.status(400).send(`No userId provided`);
   }
   try {
-    const userPaymentStates = await userPaymentStateModel.getAllByUserId(userId);
+    const userPaymentStates =
+      await userPaymentStateModel.getAllByUserId(userId);
     return res.status(200).json(userPaymentStates);
   } catch (e) {
     log.error(`Error fetching userPaymentStates for userId ${userId}`, e);
@@ -46,23 +47,30 @@ router.get('/byUserIdAndSku/:userId/:sku', async (req, res, next) => {
     return res.status(400).send(`Missing userId or sku`);
   }
   try {
-    const userPaymentStates = await userPaymentStateModel.getByUserIdAndSku(userId, sku);
+    const userPaymentStates = await userPaymentStateModel.getByUserIdAndSku(
+      userId,
+      sku,
+    );
     return res.status(200).json(userPaymentStates);
   } catch (e) {
-    log.error(`Error fetching userPaymentStates for userId ${userId} and sku ${sku}`, e);
+    log.error(
+      `Error fetching userPaymentStates for userId ${userId} and sku ${sku}`,
+      e,
+    );
     return next(e);
   }
 });
 
 router.post('/', express.json(), async (req, res, next) => {
-  const { userId, sku, providerProductId, providerPriceId, paidAt, expiresAt } = req.body as {
-    userId: string;
-    sku: string;
-    providerProductId: string;
-    providerPriceId: string;
-    paidAt: string;
-    expiresAt: string;
-  };
+  const { userId, sku, providerProductId, providerPriceId, paidAt, expiresAt } =
+    req.body as {
+      userId: string;
+      sku: string;
+      providerProductId: string;
+      providerPriceId: string;
+      paidAt: string;
+      expiresAt: string;
+    };
   try {
     const userPaymentState = await userPaymentStateModel.insert({
       id: v4(),
@@ -75,7 +83,10 @@ router.post('/', express.json(), async (req, res, next) => {
     });
     return res.status(201).json(userPaymentState);
   } catch (e) {
-    log.error(`Error adding userPaymentState for ${JSON.stringify(req.body)}`, e);
+    log.error(
+      `Error adding userPaymentState for ${JSON.stringify(req.body)}`,
+      e,
+    );
     return next(e);
   }
 });
@@ -85,14 +96,15 @@ router.put('/:id', express.json(), async (req, res, next) => {
   if (!id) {
     return res.status(400).send(`No id provided`);
   }
-  const { userId, sku, providerProductId, providerPriceId, paidAt, expiresAt } = req.body as {
-    userId: string;
-    sku: string;
-    providerProductId: string;
-    providerPriceId: string;
-    paidAt: string;
-    expiresAt: string;
-  };
+  const { userId, sku, providerProductId, providerPriceId, paidAt, expiresAt } =
+    req.body as {
+      userId: string;
+      sku: string;
+      providerProductId: string;
+      providerPriceId: string;
+      paidAt: string;
+      expiresAt: string;
+    };
   try {
     const userPaymentState = await userPaymentStateModel.update({
       id,
@@ -105,9 +117,12 @@ router.put('/:id', express.json(), async (req, res, next) => {
     });
     return res.status(200).json(userPaymentState);
   } catch (e) {
-    log.error(`Error updating userPaymentState for ${JSON.stringify(req.body)}`, e);
+    log.error(
+      `Error updating userPaymentState for ${JSON.stringify(req.body)}`,
+      e,
+    );
     return next(e);
   }
 });
 
-export default router; 
+export default router;
