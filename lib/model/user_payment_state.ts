@@ -8,6 +8,7 @@ export interface UserPaymentState {
   providerPriceId: string;
   paidAt: Date;
   expiresAt: Date;
+  refundedAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -16,7 +17,7 @@ const insert = (db: Knex) => (userPaymentState: UserPaymentState) =>
   db
     .insert({
       ...userPaymentState,
-      createdAt: new Date()
+      createdAt: new Date(),
     })
     .into('userPaymentState')
     .returning('*')
@@ -26,13 +27,13 @@ const upsert = (db: Knex) => (userPaymentState: UserPaymentState) =>
   db
     .insert({
       ...userPaymentState,
-      createdAt: new Date()
+      createdAt: new Date(),
     })
     .into('userPaymentState')
     .onConflict('id')
     .merge({
       ...userPaymentState,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     })
     .returning('*')
     .then((r) => r[0]);
@@ -41,7 +42,7 @@ const update = (db: Knex) => (userPaymentState: UserPaymentState) =>
   db
     .update({
       ...userPaymentState,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     })
     .from('userPaymentState')
     .where('id', userPaymentState.id)
@@ -50,18 +51,15 @@ const update = (db: Knex) => (userPaymentState: UserPaymentState) =>
 
 const get =
   (db: Knex) =>
-    (id: string): Promise<UserPaymentState> =>
-      db
-        .select()
-        .from('userPaymentState')
-        .where('id', id)
-        .then((r) => (r.length ? r[0] : null));
+  (id: string): Promise<UserPaymentState> =>
+    db
+      .select()
+      .from('userPaymentState')
+      .where('id', id)
+      .then((r) => (r.length ? r[0] : null));
 
 const getAll = (db: Knex) => () =>
-  db
-    .select()
-    .from('userPaymentState')
-    .orderBy('createdAt', 'desc');
+  db.select().from('userPaymentState').orderBy('createdAt', 'desc');
 
 const getByUserIdAndSku = (db: Knex) => (userId: string, sku: string) =>
   db
@@ -85,4 +83,4 @@ export default (db: Knex) => ({
   getAll: getAll(db),
   getByUserIdAndSku: getByUserIdAndSku(db),
   getAllByUserId: getAllByUserId(db),
-}); 
+});
