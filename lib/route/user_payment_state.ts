@@ -67,6 +67,8 @@ router.post('/', express.json(), async (req, res, next) => {
     sku,
     providerProductId,
     providerPriceId,
+    customerId,
+    plan,
     paidAt,
     expiresAt,
     refundedAt,
@@ -75,6 +77,8 @@ router.post('/', express.json(), async (req, res, next) => {
     sku: string;
     providerProductId: string;
     providerPriceId: string;
+    customerId: string;
+    plan: string;
     paidAt: string;
     expiresAt: string;
     refundedAt?: string;
@@ -86,11 +90,12 @@ router.post('/', express.json(), async (req, res, next) => {
       sku,
       providerProductId,
       providerPriceId,
-      paidAt: dayjs(paidAt, 'YYYY-MM-DD HH:mm:ss').toDate(),
-      expiresAt: dayjs(expiresAt, 'YYYY-MM-DD HH:mm:ss').toDate(),
-      refundedAt: refundedAt
-        ? dayjs(refundedAt, 'YYYY-MM-DD HH:mm:ss').toDate()
-        : undefined,
+      customerId,
+      plan,
+      paidAt: dayjs(paidAt).toDate(),
+      expiresAt: dayjs(expiresAt).toDate(),
+      refundedAt:
+        (refundedAt || '') !== '' ? dayjs(refundedAt).toDate() : undefined,
     });
     return res.status(201).json(userPaymentState);
   } catch (e) {
@@ -112,6 +117,8 @@ router.put('/:id', express.json(), async (req, res, next) => {
     sku,
     providerProductId,
     providerPriceId,
+    customerId,
+    plan,
     paidAt,
     expiresAt,
     refundedAt,
@@ -120,6 +127,8 @@ router.put('/:id', express.json(), async (req, res, next) => {
     sku: string;
     providerProductId: string;
     providerPriceId: string;
+    customerId: string;
+    plan: string;
     paidAt: string;
     expiresAt: string;
     refundedAt?: string;
@@ -131,11 +140,12 @@ router.put('/:id', express.json(), async (req, res, next) => {
       sku,
       providerProductId,
       providerPriceId,
-      paidAt: dayjs(paidAt, 'YYYY-MM-DD HH:mm:ss').toDate(),
-      expiresAt: dayjs(expiresAt, 'YYYY-MM-DD HH:mm:ss').toDate(),
-      refundedAt: refundedAt
-        ? dayjs(refundedAt, 'YYYY-MM-DD HH:mm:ss').toDate()
-        : undefined,
+      customerId,
+      plan,
+      paidAt: dayjs(paidAt).toDate(),
+      expiresAt: dayjs(expiresAt).toDate(),
+      refundedAt:
+        (refundedAt || '') !== '' ? dayjs(refundedAt).toDate() : undefined,
     });
     return res.status(200).json(userPaymentState);
   } catch (e) {
