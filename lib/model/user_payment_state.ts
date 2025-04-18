@@ -9,6 +9,8 @@ export interface UserPaymentState {
   paidAt: Date;
   expiresAt: Date;
   refundedAt?: Date;
+  customerId: string;
+  plan: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
