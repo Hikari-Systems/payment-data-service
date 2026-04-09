@@ -1,0 +1,40 @@
+services:
+  app:
+    build:
+      context: .
+    ports:
+      - '3001:3000'
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - '../../configs/payment-data-service:/sandbox'
+    environment:
+      db__host: payment-data-service-db
+      db__username: payment-data-service
+      db__password: payment-data-service
+      db__database: payment-data-service
+      db__port: "5432"
+    depends_on:
+      payment-data-service-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/server", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  payment-data-service-db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: payment-data-service
+      POSTGRES_USER: payment-data-service
+      POSTGRES_PASSWORD: payment-data-service
+    ports: ["5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -h payment-data-service-db -U payment-data-service"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
