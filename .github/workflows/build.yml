@@ -70,66 +70,30 @@ jobs:
       - name: Make branch name
         run: echo "BRANCH_NAME=$(echo ${{ github.ref }} | sed -e 's/^refs\/heads\///')" >> $GITHUB_ENV
 
-      - name: Log in to the Github container registry
-        uses: docker/login-action@v4.1.0
-        with:
-          registry: https://ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GH_TOKEN }}
-
-      - name: Pull per-arch images from S3 registry
+      - name: Install skopeo
         run: |
-          docker pull --platform linux/amd64 localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-amd64
-          docker pull --platform linux/arm64 localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
+          sudo apt-get update -qq
+          sudo apt-get install -y skopeo
 
-      - name: Tag and push per-arch images to GHCR temporarily
+      - name: Log in to GHCR via skopeo
         run: |
-          docker tag localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-amd64 \
-            ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-amd64
-          docker tag localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-arm64 \
-            ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
-          docker push ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-amd64
-          docker push ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
+          skopeo login ghcr.io \
+            --username ${{ github.actor }} \
+            --password ${{ secrets.GH_TOKEN }}
 
-      - name: Create and push multi-arch manifests to GHCR
-        run: |
-          docker manifest create ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }} \
-            ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-amd64 \
-            ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
-          docker manifest create ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ env.BRANCH_NAME }} \
-            ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-amd64 \
-            ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
-          docker manifest create ghcr.io/hikari-systems/${{ env.REPO_NAME }}:latest \
-            ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-amd64 \
-            ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
-          docker manifest push ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}
-          docker manifest push ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ env.BRANCH_NAME }}
-          docker manifest push ghcr.io/hikari-systems/${{ env.REPO_NAME }}:latest
-
-      - name: Remove per-arch tags from GHCR
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          for ARCH in amd64 arm64; do
-            VERSION_ID=$(gh api "/orgs/hikari-systems/packages/container/${{ env.REPO_NAME }}/versions" \
-              --jq ".[] | select(.metadata.container.tags[] == \"${{ github.sha }}-${ARCH}\") | .id")
-            if [ -n "$VERSION_ID" ]; then
-              gh api -X DELETE "/orgs/hikari-systems/packages/container/${{ env.REPO_NAME }}/versions/${VERSION_ID}"
-              echo "Deleted GHCR version ${VERSION_ID} (${ARCH})"
-            fi
-          done
-
-      - name: Create and push multi-arch manifests to S3 registry
+      - name: Create multi-arch manifest in S3 registry
         run: |
           docker manifest create --insecure localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }} \
             localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-amd64 \
             localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
-          docker manifest create --insecure localhost:5000/${{ env.REPO_NAME }}:${{ env.BRANCH_NAME }} \
-            localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-amd64 \
-            localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
-          docker manifest create --insecure localhost:5000/${{ env.REPO_NAME }}:latest \
-            localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-amd64 \
-            localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
           docker manifest push --insecure localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}
-          docker manifest push --insecure localhost:5000/${{ env.REPO_NAME }}:${{ env.BRANCH_NAME }}
-          docker manifest push --insecure localhost:5000/${{ env.REPO_NAME }}:latest
+
+      - name: Copy multi-arch manifest from S3 registry to GHCR
+        run: |
+          for TAG in ${{ github.sha }} ${{ env.BRANCH_NAME }} latest; do
+            skopeo copy \
+              --all \
+              --src-tls-verify=false \
+              docker://localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }} \
+              docker://ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${TAG}
+          done
