@@ -39,18 +39,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
 
-      - name: Log in to the Github container registry
-        uses: docker/login-action@v4.1.0
-        with:
-          registry: https://ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GH_TOKEN }}
-
-      - name: Build and push Docker image
+      - name: Build and push to S3 registry
         run: |
-          docker build --platform linux/${{ matrix.platform }} -t ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-${{ matrix.platform }} .
-          docker push ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-${{ matrix.platform }}
-          docker tag ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-${{ matrix.platform }} localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-${{ matrix.platform }}
+          docker build --platform linux/${{ matrix.platform }} \
+            -t localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-${{ matrix.platform }} .
           docker push localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-${{ matrix.platform }}
 
   merge-manifest:
@@ -85,7 +77,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GH_TOKEN }}
 
-      - name: Merge manifest
+      - name: Pull per-arch images from S3 registry
+        run: |
+          docker pull --platform linux/amd64 localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-amd64
+          docker pull --platform linux/arm64 localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
+
+      - name: Tag and push per-arch images to GHCR temporarily
+        run: |
+          docker tag localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-amd64 \
+            ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-amd64
+          docker tag localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-arm64 \
+            ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
+          docker push ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-amd64
+          docker push ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
+
+      - name: Create and push multi-arch manifests to GHCR
         run: |
           docker manifest create ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }} \
             ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ github.sha }}-amd64 \
@@ -100,6 +106,21 @@ jobs:
           docker manifest push ghcr.io/hikari-systems/${{ env.REPO_NAME }}:${{ env.BRANCH_NAME }}
           docker manifest push ghcr.io/hikari-systems/${{ env.REPO_NAME }}:latest
 
+      - name: Remove per-arch tags from GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          for ARCH in amd64 arm64; do
+            VERSION_ID=$(gh api "/orgs/hikari-systems/packages/container/${{ env.REPO_NAME }}/versions" \
+              --jq ".[] | select(.metadata.container.tags[] == \"${{ github.sha }}-${ARCH}\") | .id")
+            if [ -n "$VERSION_ID" ]; then
+              gh api -X DELETE "/orgs/hikari-systems/packages/container/${{ env.REPO_NAME }}/versions/${VERSION_ID}"
+              echo "Deleted GHCR version ${VERSION_ID} (${ARCH})"
+            fi
+          done
+
+      - name: Create and push multi-arch manifests to S3 registry
+        run: |
           docker manifest create --insecure localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }} \
             localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-amd64 \
             localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}-arm64
@@ -112,18 +133,3 @@ jobs:
           docker manifest push --insecure localhost:5000/${{ env.REPO_NAME }}:${{ github.sha }}
           docker manifest push --insecure localhost:5000/${{ env.REPO_NAME }}:${{ env.BRANCH_NAME }}
           docker manifest push --insecure localhost:5000/${{ env.REPO_NAME }}:latest
-
-      - name: Remove per-arch tags
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          for ARCH in amd64 arm64; do
-            VERSION_ID=$(gh api "/orgs/hikari-systems/packages/container/${{ env.REPO_NAME }}/versions" \
-              --jq ".[] | select(.metadata.container.tags[] == \"${{ github.sha }}-${ARCH}\") | .id")
-            if [ -n "$VERSION_ID" ]; then
-              gh api -X DELETE "/orgs/hikari-systems/packages/container/${{ env.REPO_NAME }}/versions/${VERSION_ID}"
-              echo "Deleted GHCR version ${VERSION_ID} (${ARCH})"
-            fi
-            curl -sf -X DELETE \
-              "http://localhost:5000/v2/${{ env.REPO_NAME }}/manifests/${{ github.sha }}-${ARCH}"
-          done
