@@ -1,6 +1,6 @@
 use crate::AppState;
 use actix_web::{web, HttpResponse};
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -11,8 +11,8 @@ struct PaymentEvent {
     provider_event_id: String,
     #[sqlx(json)]
     event_data: serde_json::Value,
-    created_at: Option<NaiveDateTime>,
-    updated_at: Option<NaiveDateTime>,
+    created_at: Option<DateTime<Utc>>,
+    updated_at: Option<DateTime<Utc>>,
 }
 
 // eventData arrives as a JSON-encoded string — the TS client does JSON.stringify before sending.

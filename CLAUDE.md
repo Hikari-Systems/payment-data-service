@@ -74,7 +74,7 @@ Use **runtime queries** (`query_as::<_, Row>(sql).bind(value)`) not compile-time
 - Bind for INSERT/UPDATE: `sqlx::types::Json(&parsed_value)`
 
 ### Timestamps
-All timestamp columns are `TIMESTAMP WITHOUT TIME ZONE` — Knex `t.timestamps()` and `t.timestamp()` produce timezone-less columns. Use `chrono::NaiveDateTime` (not `DateTime<Utc>`). Client sends ISO-8601 strings with timezone offset (e.g. `"2025-01-01T00:00:00.000Z"`); parse with `DateTime::parse_from_rfc3339` then `.naive_utc()`.
+All timestamp columns are `TIMESTAMP WITH TIME ZONE` (`TIMESTAMPTZ`) — despite Knex docs suggesting otherwise, the actual Knex-created columns in this database are TIMESTAMPTZ. Use `chrono::DateTime<Utc>` (not `NaiveDateTime`) for all timestamp fields. Client sends ISO-8601 strings with timezone offset (e.g. `"2025-01-01T00:00:00.000Z"`); parse with `DateTime::parse_from_rfc3339` then `.with_timezone(&Utc)`. Bare naive datetime strings (no tz) are treated as UTC via `.and_utc()`.
 
 ### Static files
 `static/index.html` is embedded in the binary via `include_str!("../static/index.html")` at compile time. It does NOT need to be copied into the runtime Docker image. The `COPY static ./static` step in the Dockerfile must occur in the builder stage before `cargo build`.
