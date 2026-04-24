@@ -1,6 +1,6 @@
 use crate::AppState;
 use actix_web::{web, HttpResponse};
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -12,11 +12,11 @@ struct UserPaymentState {
     sku: String,
     provider_product_id: String,
     provider_price_id: String,
-    paid_at: NaiveDateTime,
-    expires_at: NaiveDateTime,
-    created_at: Option<NaiveDateTime>,
-    updated_at: Option<NaiveDateTime>,
-    refunded_at: Option<NaiveDateTime>,
+    paid_at: DateTime<Utc>,
+    expires_at: DateTime<Utc>,
+    created_at: Option<DateTime<Utc>>,
+    updated_at: Option<DateTime<Utc>>,
+    refunded_at: Option<DateTime<Utc>>,
     customer_id: String,
     plan: String,
 }
@@ -50,17 +50,19 @@ struct UpdateBody {
     refunded_at: Option<String>,
 }
 
-fn parse_dt(s: &str) -> actix_web::Result<NaiveDateTime> {
-    // Try RFC3339 first (handles "2025-01-01T00:00:00.000Z" and with tz offsets).
-    // .naive_utc() drops the timezone info — correct for TIMESTAMP WITHOUT TIME ZONE columns.
+fn parse_dt(s: &str) -> actix_web::Result<DateTime<Utc>> {
+    // Columns are TIMESTAMPTZ — parse as DateTime<Utc>.
     chrono::DateTime::parse_from_rfc3339(s)
-        .map(|dt| dt.naive_utc())
-        .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f"))
-        .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S"))
+        .map(|dt| dt.with_timezone(&Utc))
+        .or_else(|_| {
+            chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f")
+                .or_else(|_| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S"))
+                .map(|ndt| ndt.and_utc())
+        })
         .map_err(actix_web::error::ErrorBadRequest)
 }
 
-fn parse_opt_dt(s: Option<&str>) -> actix_web::Result<Option<NaiveDateTime>> {
+fn parse_opt_dt(s: Option<&str>) -> actix_web::Result<Option<DateTime<Utc>>> {
     match s.filter(|s| !s.trim().is_empty()) {
         Some(s) => parse_dt(s).map(Some),
         None => Ok(None),
