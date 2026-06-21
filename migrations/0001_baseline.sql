@@ -3,10 +3,7 @@
 -- Knex-managed databases, marking it applied without running it).
 --
 -- Column names are snake_case — what Knex produced via wrapIdentifier = snakeCase.
--- NOTE: this baseline declares plain TIMESTAMP, but the Rust models decode these columns as
--- DateTime<Utc> (i.e. they expect TIMESTAMPTZ). On existing Knex DBs the live columns are
--- already TIMESTAMPTZ (Knex t.timestamp() defaults to `with time zone`); on a FRESH DB built
--- from this file they are not. Migration 0002_timestamptz_guard.sql reconciles both cases.
+-- All timestamps are TIMESTAMP (WITHOUT TIME ZONE) — Knex t.timestamps() / t.timestamp().
 
 CREATE TABLE IF NOT EXISTS payment_event (
     id                UUID         PRIMARY KEY NOT NULL,
