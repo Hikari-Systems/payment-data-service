@@ -92,6 +92,34 @@ async fn index() -> impl actix_web::Responder {
         .body(include_str!("../static/index.html"))
 }
 
+#[derive(serde::Deserialize)]
+struct HealthQuery {
+    deps: Option<String>,
+}
+
+/// `GET /healthcheck` → `OK` (cheap liveness probe the Docker HEALTHCHECK
+/// subcommand hits). `?deps=true` additionally runs `SELECT 1` against the
+/// database, returning 503 when the pool is unhealthy.
+async fn healthcheck(
+    state: actix_web::web::Data<AppState>,
+    q: actix_web::web::Query<HealthQuery>,
+) -> actix_web::HttpResponse {
+    let want_deps = matches!(q.deps.as_deref(), Some("true") | Some("1"));
+    if !want_deps {
+        return actix_web::HttpResponse::Ok().body("OK");
+    }
+    match sqlx::query_scalar::<_, i64>("SELECT 1")
+        .fetch_one(&state.pool)
+        .await
+    {
+        Ok(_) => actix_web::HttpResponse::Ok().body("OK"),
+        Err(e) => {
+            tracing::error!("healthcheck db query failed: {e}");
+            actix_web::HttpResponse::ServiceUnavailable().body("db down")
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cfg = config::load().expect("Failed to load config");
@@ -111,7 +139,7 @@ async fn main() -> anyhow::Result<()> {
         actix_web::App::new()
             .app_data(state.clone())
             .wrap(hs_utils::middleware::timing())
-            .route("/healthcheck", web::get().to(|| async { "OK" }))
+            .route("/healthcheck", web::get().to(healthcheck))
             .route("/", web::get().to(index))
             .configure(routes::configure)
     })
