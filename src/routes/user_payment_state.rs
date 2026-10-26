@@ -21,6 +21,11 @@ struct UserPaymentState {
     plan: String,
 }
 
+/// Every column `UserPaymentState` reads, in place of `SELECT *` / `RETURNING *` (a `*` statement's
+/// cached plan breaks on old instances mid-deploy when a migration changes the table).
+/// When a migration adds a column to `user_payment_state`, add it here and to `UserPaymentState` in the same change.
+const USER_PAYMENT_STATE_COLUMNS: &str = "id, user_id, sku, provider_product_id, provider_price_id, paid_at, expires_at, created_at, updated_at, refunded_at, customer_id, plan";
+
 // Timestamps arrive as ISO-8601 strings (e.g. "2025-01-01T00:00:00.000Z").
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,8 +78,9 @@ async fn get_by_id(
     state: web::Data<AppState>,
     path: web::Path<Uuid>,
 ) -> actix_web::Result<HttpResponse> {
+    // Not SELECT *: USER_PAYMENT_STATE_COLUMNS must stay in sync with user_payment_state's full column list (cached-plan breakage mid-deploy).
     let row = sqlx::query_as::<_, UserPaymentState>(
-        "SELECT * FROM user_payment_state WHERE id = $1",
+        &format!("SELECT {USER_PAYMENT_STATE_COLUMNS} FROM user_payment_state WHERE id = $1"),
     )
     .bind(path.into_inner())
     .fetch_optional(&state.pool)
@@ -91,8 +97,9 @@ async fn get_by_user_id(
     state: web::Data<AppState>,
     path: web::Path<Uuid>,
 ) -> actix_web::Result<HttpResponse> {
+    // Not SELECT *: USER_PAYMENT_STATE_COLUMNS must stay in sync with user_payment_state's full column list (cached-plan breakage mid-deploy).
     let rows = sqlx::query_as::<_, UserPaymentState>(
-        "SELECT * FROM user_payment_state WHERE user_id = $1 ORDER BY created_at DESC",
+        &format!("SELECT {USER_PAYMENT_STATE_COLUMNS} FROM user_payment_state WHERE user_id = $1 ORDER BY created_at DESC"),
     )
     .bind(path.into_inner())
     .fetch_all(&state.pool)
@@ -107,8 +114,9 @@ async fn get_by_user_id_and_sku(
     path: web::Path<(Uuid, String)>,
 ) -> actix_web::Result<HttpResponse> {
     let (user_id, sku) = path.into_inner();
+    // Not SELECT *: USER_PAYMENT_STATE_COLUMNS must stay in sync with user_payment_state's full column list (cached-plan breakage mid-deploy).
     let rows = sqlx::query_as::<_, UserPaymentState>(
-        "SELECT * FROM user_payment_state WHERE user_id = $1 AND sku = $2 ORDER BY created_at DESC",
+        &format!("SELECT {USER_PAYMENT_STATE_COLUMNS} FROM user_payment_state WHERE user_id = $1 AND sku = $2 ORDER BY created_at DESC"),
     )
     .bind(user_id)
     .bind(&sku)
@@ -127,11 +135,12 @@ async fn create(
     let expires_at = parse_dt(&body.expires_at)?;
     let refunded_at = parse_opt_dt(body.refunded_at.as_deref())?;
 
+    // Not RETURNING *: USER_PAYMENT_STATE_COLUMNS must stay in sync with user_payment_state's full column list (cached-plan breakage mid-deploy).
     let saved = sqlx::query_as::<_, UserPaymentState>(
-        "INSERT INTO user_payment_state
+        &format!("INSERT INTO user_payment_state
          (id, user_id, sku, provider_product_id, provider_price_id,
           customer_id, plan, paid_at, expires_at, refunded_at, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) RETURNING *",
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) RETURNING {USER_PAYMENT_STATE_COLUMNS}"),
     )
     .bind(Uuid::new_v4())
     .bind(body.user_id)
@@ -159,13 +168,14 @@ async fn update(
     let expires_at = parse_dt(&body.expires_at)?;
     let refunded_at = parse_opt_dt(body.refunded_at.as_deref())?;
 
+    // Not RETURNING *: USER_PAYMENT_STATE_COLUMNS must stay in sync with user_payment_state's full column list (cached-plan breakage mid-deploy).
     let saved = sqlx::query_as::<_, UserPaymentState>(
-        "UPDATE user_payment_state
+        &format!("UPDATE user_payment_state
          SET user_id = $1, sku = $2, provider_product_id = $3,
              provider_price_id = $4, customer_id = $5, plan = $6,
              paid_at = $7, expires_at = $8, refunded_at = $9,
              updated_at = NOW()
-         WHERE id = $10 RETURNING *",
+         WHERE id = $10 RETURNING {USER_PAYMENT_STATE_COLUMNS}"),
     )
     .bind(body.user_id)
     .bind(&body.sku)

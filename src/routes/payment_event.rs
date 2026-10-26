@@ -15,6 +15,11 @@ struct PaymentEvent {
     updated_at: Option<DateTime<Utc>>,
 }
 
+/// Every column `PaymentEvent` reads, in place of `SELECT *` / `RETURNING *` (a `*` statement's
+/// cached plan breaks on old instances mid-deploy when a migration changes the table).
+/// When a migration adds a column to `payment_event`, add it here and to `PaymentEvent` in the same change.
+const PAYMENT_EVENT_COLUMNS: &str = "id, provider_event_id, event_data, created_at, updated_at";
+
 // eventData arrives as a JSON-encoded string — the TS client does JSON.stringify before sending.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,8 +39,9 @@ async fn get_by_id(
     state: web::Data<AppState>,
     path: web::Path<Uuid>,
 ) -> actix_web::Result<HttpResponse> {
+    // Not SELECT *: PAYMENT_EVENT_COLUMNS must stay in sync with payment_event's full column list (cached-plan breakage mid-deploy).
     let row = sqlx::query_as::<_, PaymentEvent>(
-        "SELECT * FROM payment_event WHERE id = $1",
+        &format!("SELECT {PAYMENT_EVENT_COLUMNS} FROM payment_event WHERE id = $1"),
     )
     .bind(path.into_inner())
     .fetch_optional(&state.pool)
@@ -55,9 +61,10 @@ async fn create(
     let event_data: serde_json::Value = serde_json::from_str(&body.event_data)
         .map_err(actix_web::error::ErrorBadRequest)?;
 
+    // Not RETURNING *: PAYMENT_EVENT_COLUMNS must stay in sync with payment_event's full column list (cached-plan breakage mid-deploy).
     let saved = sqlx::query_as::<_, PaymentEvent>(
-        "INSERT INTO payment_event (id, provider_event_id, event_data, created_at)
-         VALUES ($1, $2, $3, NOW()) RETURNING *",
+        &format!("INSERT INTO payment_event (id, provider_event_id, event_data, created_at)
+         VALUES ($1, $2, $3, NOW()) RETURNING {PAYMENT_EVENT_COLUMNS}"),
     )
     .bind(Uuid::new_v4())
     .bind(&body.provider_event_id)
@@ -77,10 +84,11 @@ async fn update(
     let event_data: serde_json::Value = serde_json::from_str(&body.event_data)
         .map_err(actix_web::error::ErrorBadRequest)?;
 
+    // Not RETURNING *: PAYMENT_EVENT_COLUMNS must stay in sync with payment_event's full column list (cached-plan breakage mid-deploy).
     let saved = sqlx::query_as::<_, PaymentEvent>(
-        "UPDATE payment_event
+        &format!("UPDATE payment_event
          SET provider_event_id = $1, event_data = $2, updated_at = NOW()
-         WHERE id = $3 RETURNING *",
+         WHERE id = $3 RETURNING {PAYMENT_EVENT_COLUMNS}"),
     )
     .bind(&body.provider_event_id)
     .bind(sqlx::types::Json(&event_data))
