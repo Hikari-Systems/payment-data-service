@@ -7,6 +7,7 @@ pub struct AppState {
     pub pool: sqlx::PgPool,
 }
 
+#[tracing::instrument(skip_all, name = "db.migrate.transfer_knex_state", fields(db.system.name = "postgresql"))]
 async fn transfer_knex_state(pool: &sqlx::PgPool) -> anyhow::Result<()> {
     const FINAL_KNEX_MIGRATION: &str = "202504181501_customerid";
 
@@ -23,12 +24,11 @@ async fn transfer_knex_state(pool: &sqlx::PgPool) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let fully_migrated: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM knex_migrations WHERE name LIKE $1)",
-    )
-    .bind(format!("{}%", FINAL_KNEX_MIGRATION))
-    .fetch_one(pool)
-    .await?;
+    let fully_migrated: bool =
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM knex_migrations WHERE name LIKE $1)")
+            .bind(format!("{}%", FINAL_KNEX_MIGRATION))
+            .fetch_one(pool)
+            .await?;
 
     if !fully_migrated {
         anyhow::bail!(
@@ -108,10 +108,7 @@ async fn healthcheck(
     if !want_deps {
         return actix_web::HttpResponse::Ok().body("OK");
     }
-    match sqlx::query("SELECT 1")
-        .fetch_one(&state.pool)
-        .await
-    {
+    match sqlx::query("SELECT 1").fetch_one(&state.pool).await {
         Ok(_) => actix_web::HttpResponse::Ok().body("OK"),
         Err(e) => {
             tracing::error!("healthcheck db query failed: {e}");
@@ -126,7 +123,9 @@ async fn main() -> anyhow::Result<()> {
 
     hs_utils::healthcheck::check_subcommand(cfg.server.port);
 
-    hs_utils::logging::init(&cfg.log.level);
+    // Replaces logging::init (it installs the same stdout layer). Held for the
+    // whole of main: dropping it flushes the span and metric exporters.
+    let otel = hs_utils::otel::init(&cfg.log.level, &cfg.otel)?;
 
     let pool = hs_utils::db::build_pool(&cfg.db).await?;
     transfer_knex_state(&pool).await?;
@@ -135,13 +134,46 @@ async fn main() -> anyhow::Result<()> {
     let state = web::Data::new(AppState { pool });
     let port = cfg.server.port;
 
-    hs_utils::server::run(port, move || {
+    let served = hs_utils::server::run(port, move || {
         actix_web::App::new()
             .app_data(state.clone())
-            .wrap(hs_utils::middleware::timing())
+            // A span per request, named by route template, continuing the
+            // caller's trace; also request duration and in-flight metrics.
+            .wrap(hs_utils::otel::actix_trace())
             .route("/healthcheck", web::get().to(healthcheck))
             .route("/", web::get().to(index))
             .configure(routes::configure)
     })
-    .await
+    .await;
+
+    // actix stops on SIGTERM / SIGINT; flush what the exporters hold before exiting.
+    flush_otel(otel).await;
+    served
+}
+
+/// Seconds the exporters get to flush at shutdown, inside `docker stop`'s 10 s grace period.
+const OTEL_FLUSH_SECS: u64 = 5;
+
+/// Drop the otel guard (which flushes the span and metric exporters) under a deadline, so an
+/// unreachable endpoint cannot hold the process past `docker stop`'s grace period.
+async fn flush_otel(otel: hs_utils::otel::OtelGuard) {
+    let flush_started = std::time::Instant::now();
+    let flushed = tokio::time::timeout(
+        std::time::Duration::from_secs(OTEL_FLUSH_SECS),
+        tokio::task::spawn_blocking(move || drop(otel)),
+    )
+    .await;
+    if flushed.is_err() {
+        tracing::warn!(
+            shutdown.otel_flush_ms = flush_started.elapsed().as_millis(),
+            shutdown.otel_flush_timed_out = true,
+            "shutdown complete, but the otel flush hit its deadline and spans were dropped"
+        );
+    } else {
+        tracing::info!(
+            shutdown.otel_flush_ms = flush_started.elapsed().as_millis(),
+            shutdown.otel_flush_timed_out = false,
+            "shutdown complete"
+        );
+    }
 }

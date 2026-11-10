@@ -5,11 +5,17 @@
   "log": {
     "level": "debug"
   },
+  "otel": {
+    "enabled": "false",
+    "serviceName": "payment-data-service",
+    "level": "info"
+  },
   "db": {
     "database": "payment-data-service",
     "host": "payment-data-service-db",
     "port": "5432",
     "username": "payment-data-service",
-    "password": "payment-data-service"
+    "password": "payment-data-service",
+    "slowqueryms": "250"
   }
 }

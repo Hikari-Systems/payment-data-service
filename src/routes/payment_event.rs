@@ -35,14 +35,15 @@ struct UpdateBody {
     event_data: String,
 }
 
+#[tracing::instrument(skip_all, name = "db.payment_event.get_by_id", fields(db.system.name = "postgresql"))]
 async fn get_by_id(
     state: web::Data<AppState>,
     path: web::Path<Uuid>,
 ) -> actix_web::Result<HttpResponse> {
     // Not SELECT *: PAYMENT_EVENT_COLUMNS must stay in sync with payment_event's full column list (cached-plan breakage mid-deploy).
-    let row = sqlx::query_as::<_, PaymentEvent>(
-        &format!("SELECT {PAYMENT_EVENT_COLUMNS} FROM payment_event WHERE id = $1"),
-    )
+    let row = sqlx::query_as::<_, PaymentEvent>(&format!(
+        "SELECT {PAYMENT_EVENT_COLUMNS} FROM payment_event WHERE id = $1"
+    ))
     .bind(path.into_inner())
     .fetch_optional(&state.pool)
     .await
@@ -54,18 +55,19 @@ async fn get_by_id(
     })
 }
 
+#[tracing::instrument(skip_all, name = "db.payment_event.create", fields(db.system.name = "postgresql"))]
 async fn create(
     state: web::Data<AppState>,
     body: web::Json<CreateBody>,
 ) -> actix_web::Result<HttpResponse> {
-    let event_data: serde_json::Value = serde_json::from_str(&body.event_data)
-        .map_err(actix_web::error::ErrorBadRequest)?;
+    let event_data: serde_json::Value =
+        serde_json::from_str(&body.event_data).map_err(actix_web::error::ErrorBadRequest)?;
 
     // Not RETURNING *: PAYMENT_EVENT_COLUMNS must stay in sync with payment_event's full column list (cached-plan breakage mid-deploy).
-    let saved = sqlx::query_as::<_, PaymentEvent>(
-        &format!("INSERT INTO payment_event (id, provider_event_id, event_data, created_at)
-         VALUES ($1, $2, $3, NOW()) RETURNING {PAYMENT_EVENT_COLUMNS}"),
-    )
+    let saved = sqlx::query_as::<_, PaymentEvent>(&format!(
+        "INSERT INTO payment_event (id, provider_event_id, event_data, created_at)
+         VALUES ($1, $2, $3, NOW()) RETURNING {PAYMENT_EVENT_COLUMNS}"
+    ))
     .bind(Uuid::new_v4())
     .bind(&body.provider_event_id)
     .bind(sqlx::types::Json(&event_data))
@@ -76,20 +78,21 @@ async fn create(
     Ok(HttpResponse::Created().json(saved))
 }
 
+#[tracing::instrument(skip_all, name = "db.payment_event.update", fields(db.system.name = "postgresql"))]
 async fn update(
     state: web::Data<AppState>,
     path: web::Path<Uuid>,
     body: web::Json<UpdateBody>,
 ) -> actix_web::Result<HttpResponse> {
-    let event_data: serde_json::Value = serde_json::from_str(&body.event_data)
-        .map_err(actix_web::error::ErrorBadRequest)?;
+    let event_data: serde_json::Value =
+        serde_json::from_str(&body.event_data).map_err(actix_web::error::ErrorBadRequest)?;
 
     // Not RETURNING *: PAYMENT_EVENT_COLUMNS must stay in sync with payment_event's full column list (cached-plan breakage mid-deploy).
-    let saved = sqlx::query_as::<_, PaymentEvent>(
-        &format!("UPDATE payment_event
+    let saved = sqlx::query_as::<_, PaymentEvent>(&format!(
+        "UPDATE payment_event
          SET provider_event_id = $1, event_data = $2, updated_at = NOW()
-         WHERE id = $3 RETURNING {PAYMENT_EVENT_COLUMNS}"),
-    )
+         WHERE id = $3 RETURNING {PAYMENT_EVENT_COLUMNS}"
+    ))
     .bind(&body.provider_event_id)
     .bind(sqlx::types::Json(&event_data))
     .bind(path.into_inner())

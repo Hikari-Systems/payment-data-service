@@ -74,14 +74,15 @@ fn parse_opt_dt(s: Option<&str>) -> actix_web::Result<Option<DateTime<Utc>>> {
     }
 }
 
+#[tracing::instrument(skip_all, name = "db.user_payment_state.get_by_id", fields(db.system.name = "postgresql"))]
 async fn get_by_id(
     state: web::Data<AppState>,
     path: web::Path<Uuid>,
 ) -> actix_web::Result<HttpResponse> {
     // Not SELECT *: USER_PAYMENT_STATE_COLUMNS must stay in sync with user_payment_state's full column list (cached-plan breakage mid-deploy).
-    let row = sqlx::query_as::<_, UserPaymentState>(
-        &format!("SELECT {USER_PAYMENT_STATE_COLUMNS} FROM user_payment_state WHERE id = $1"),
-    )
+    let row = sqlx::query_as::<_, UserPaymentState>(&format!(
+        "SELECT {USER_PAYMENT_STATE_COLUMNS} FROM user_payment_state WHERE id = $1"
+    ))
     .bind(path.into_inner())
     .fetch_optional(&state.pool)
     .await
@@ -93,6 +94,7 @@ async fn get_by_id(
     })
 }
 
+#[tracing::instrument(skip_all, name = "db.user_payment_state.get_by_user_id", fields(db.system.name = "postgresql"))]
 async fn get_by_user_id(
     state: web::Data<AppState>,
     path: web::Path<Uuid>,
@@ -109,6 +111,7 @@ async fn get_by_user_id(
     Ok(HttpResponse::Ok().json(rows))
 }
 
+#[tracing::instrument(skip_all, name = "db.user_payment_state.get_by_user_id_and_sku", fields(db.system.name = "postgresql"))]
 async fn get_by_user_id_and_sku(
     state: web::Data<AppState>,
     path: web::Path<(Uuid, String)>,
@@ -127,6 +130,7 @@ async fn get_by_user_id_and_sku(
     Ok(HttpResponse::Ok().json(rows))
 }
 
+#[tracing::instrument(skip_all, name = "db.user_payment_state.create", fields(db.system.name = "postgresql"))]
 async fn create(
     state: web::Data<AppState>,
     body: web::Json<CreateBody>,
@@ -159,6 +163,7 @@ async fn create(
     Ok(HttpResponse::Created().json(saved))
 }
 
+#[tracing::instrument(skip_all, name = "db.user_payment_state.update", fields(db.system.name = "postgresql"))]
 async fn update(
     state: web::Data<AppState>,
     path: web::Path<Uuid>,
@@ -169,14 +174,14 @@ async fn update(
     let refunded_at = parse_opt_dt(body.refunded_at.as_deref())?;
 
     // Not RETURNING *: USER_PAYMENT_STATE_COLUMNS must stay in sync with user_payment_state's full column list (cached-plan breakage mid-deploy).
-    let saved = sqlx::query_as::<_, UserPaymentState>(
-        &format!("UPDATE user_payment_state
+    let saved = sqlx::query_as::<_, UserPaymentState>(&format!(
+        "UPDATE user_payment_state
          SET user_id = $1, sku = $2, provider_product_id = $3,
              provider_price_id = $4, customer_id = $5, plan = $6,
              paid_at = $7, expires_at = $8, refunded_at = $9,
              updated_at = NOW()
-         WHERE id = $10 RETURNING {USER_PAYMENT_STATE_COLUMNS}"),
-    )
+         WHERE id = $10 RETURNING {USER_PAYMENT_STATE_COLUMNS}"
+    ))
     .bind(body.user_id)
     .bind(&body.sku)
     .bind(&body.provider_product_id)
@@ -197,14 +202,14 @@ async fn update(
 pub fn configure(cfg: &mut web::ServiceConfig) {
     // CRITICAL: specific paths before the /{id} wildcard — actix-web matches in order.
     cfg.route(
-            "/api/userPaymentState/byUserIdAndSku/{userId}/{sku}",
-            web::get().to(get_by_user_id_and_sku),
-        )
-        .route(
-            "/api/userPaymentState/byUserId/{userId}",
-            web::get().to(get_by_user_id),
-        )
-        .route("/api/userPaymentState/{id}", web::get().to(get_by_id))
-        .route("/api/userPaymentState", web::post().to(create))
-        .route("/api/userPaymentState/{id}", web::put().to(update));
+        "/api/userPaymentState/byUserIdAndSku/{userId}/{sku}",
+        web::get().to(get_by_user_id_and_sku),
+    )
+    .route(
+        "/api/userPaymentState/byUserId/{userId}",
+        web::get().to(get_by_user_id),
+    )
+    .route("/api/userPaymentState/{id}", web::get().to(get_by_id))
+    .route("/api/userPaymentState", web::post().to(create))
+    .route("/api/userPaymentState/{id}", web::put().to(update));
 }

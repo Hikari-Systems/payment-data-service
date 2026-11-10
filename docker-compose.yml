@@ -16,6 +16,7 @@ services:
       db__password: payment-data-service
       db__database: payment-data-service
       db__port: "5432"
+      otel__enabled: "false"
     depends_on:
       payment-data-service-db:
         condition: service_healthy

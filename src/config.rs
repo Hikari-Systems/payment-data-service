@@ -5,6 +5,10 @@ pub struct AppConfig {
     pub server: ServerConfig,
     pub log: LogConfig,
     pub db: hs_utils::db::DbConfig,
+    /// Traces and metrics (hs-utils `otel`). Ships disabled: nothing is
+    /// exported until `otel__enabled` is set, with a key or a Collector.
+    #[serde(default)]
+    pub otel: hs_utils::otel::OtelConfig,
 }
 
 #[derive(Deserialize)]

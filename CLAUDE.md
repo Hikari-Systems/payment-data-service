@@ -141,9 +141,16 @@ instance still running the old code (mid rolling deploy) fails every `*` query w
 
 ## Instrumented calls (hs-utils otel)
 
-Traces and metrics come from hs-utils' `otel` module, v0.37.1 and later. This repo is on v0.35.0, so until it
-bumps, read this section as the target. All of it is inert until `otel.enabled` is set, so it can land before
-a Collector or Honeycomb key exists. The full reference is hs-utils' `CLAUDE.md` (v0.37.0).
+Traces and metrics come from hs-utils' `otel` module (this repo is on v0.37.2, features `otel-actix` and
+`http-client`). All of it is inert until `otel.enabled` is set, so it can land before a Collector or Honeycomb
+key exists. The full reference is hs-utils' `CLAUDE.md`.
+
+**What is wired here:** `otel::init` in `main.rs` (the guard is dropped under a 5 s deadline after actix stops on
+SIGTERM / SIGINT), `actix_trace()` on the `App`, a `db.<module>.<handler>` span on each route handler that
+queries (they are the query functions here), `db.slowqueryms: 250`, and `clippy.toml`. No path carries personal
+data (ids are UUIDs), so no path redactor is installed: add one before any route takes an email or similar in a
+segment. Customer, price and product ids travel in bodies only; keep them, and card or amount details, out of
+span names, fields and info-level log lines.
 
 **Startup.**
 - `let _otel = hs_utils::otel::init(&log_level, &cfg.otel)?;` replaces `logging::init`, with the same level
